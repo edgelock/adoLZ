@@ -1,0 +1,75 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+#Changing the trigger to none prevents the pipeline from running every time we make a commit
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+#We needed to add some variables to represent the backend storage account. 
+#They will match the names of the backend storage objects in Azure
+variables:
+  bkstrgrg: 'adoLZstate' #name of the backend rg
+  bkstrg: 'bkstrg' #name of the backend storage acc
+  bkcontainer: 'bkcontainer' #name of the backend container
+  bkstrgkey: 'state' #name of the backend container key
+
+#Wer're adding a stage here to validate the terraform config
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate 
+        continueOnError: false #This config makes the job quit if the terraform config fails validation
+        steps:
+        - task: TerraformInstaller@1
+          displayName: tfinstall
+          inputs:
+            terraformVersion: 'latest'
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            backendServiceArm: 'adoLZscn'
+            backendAzureRmResourceGroupName: '$(bkstrgrg)'
+            backendAzureRmStorageAccountName: '$(bkstrg)'
+            backendAzureRmContainerName: '$(bkcontainer)'
+            backendAzureRmKey: '$(bkstrgkey)'
+        - task: TerraformTaskV4@4
+          displayName: validate tf
+          inputs:
+            provider: 'azurerm'
+            command: 'validate'
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate') #This condition indicates that the deploy will run ONLY if tfvalidate was successful. 
+    dependsOn: tfvalidate #This also makes sure that this stage wont run until AFTER the first stage runs.
+    jobs:
+      - job: apply
+        steps:
+        - task: TerraformInstaller@1
+          displayName: tfinstall
+          inputs:
+            terraformVersion: 'latest'
+        - task: TerraformTaskV4@4
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            backendServiceArm: 'adoLZscn'
+            backendAzureRmResourceGroupName: '$(bkstrgrg)'
+            backendAzureRmStorageAccountName: '$(bkstrg)'
+            backendAzureRmContainerName: '$(bkcontainer)'
+            backendAzureRmKey: '$(bkstrgkey)'
+        - task: TerraformTaskV4@4
+          displayName: plan
+          inputs:
+            provider: 'azurerm'
+            command: 'plan'
+            environmentServiceNameAzureRM: 'adoLZscn'
+        - task: TerraformTaskV4@4
+          displayName: apply
+          inputs:
+            provider: 'azurerm'
+            command: 'apply'
+            environmentServiceNameAzureRM: 'adoLZscn'
