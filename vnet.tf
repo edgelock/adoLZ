@@ -1,9 +1,3 @@
-resource "azurerm_resource_group" "vnet_rg" {
-  name     = var.resourcegroup_name
-  location = var.location
-  tags     = var.tags
-}
-
 resource "azurerm_virtual_network" "vnet" {
   name                = var.vnet_name
   address_space       = var.vnet_address_space
